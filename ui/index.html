@@ -1,0 +1,940 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>sshproxy</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='12' fill='none' stroke='%230b6bcb' stroke-width='4'/%3E%3Ccircle cx='16' cy='16' r='5' fill='%230b6bcb'/%3E%3C/svg%3E">
+<style>
+  /* A system-settings style utility: grouped rows, native type, one
+     prominent element (the status at the top). */
+  :root {
+    --bg: #eef0f3; --group: #fff; --text: #17191c; --muted: #697079; --line: #e3e6ea; --hover: #f5f6f8;
+    --accent: #0b6bcb; --accent-soft: #e8f1fb; --on: #1f8a4c; --on-soft: #e7f4ec; --down: #c9352b; --unknown: #a3a9b1;
+    --field: #f6f7f9; --shadow: 0 1px 2px rgba(23, 25, 28, .06); --on-accent: #fff;
+    font-size: 14px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16181b; --group: #1f2226; --text: #e8eaed; --muted: #9aa0a6; --line: #2c3036; --hover: #262a2f;
+      --accent: #5aa5f5; --accent-soft: #1b2a3c; --on: #4cc27d; --on-soft: #17301f; --down: #f06a5e; --unknown: #5f656c;
+      --field: #191b1f; --shadow: none; --on-accent: #0c1a2b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 1rem/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", system-ui, "PingFang SC", "Microsoft YaHei", sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 28px 20px 56px; }
+  .num { font-variant-numeric: tabular-nums; }
+  .muted { color: var(--muted); }
+  .small { font-size: .86rem; }
+  .ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .row { display: flex; align-items: center; gap: 10px; }
+  .grow { flex: 1; min-width: 0; }
+  .hidden { display: none !important; }
+  code { font: .93rem ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+
+  /* controls */
+  input[type=text], input[type=password], select, textarea {
+    font: inherit; color: var(--text); background: var(--field); border: 1px solid var(--line);
+    border-radius: 7px; padding: 7px 10px; min-width: 0; }
+  input[type=text], input[type=password], textarea { width: 100%; }
+  textarea { font: .93rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; resize: vertical; }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  input.invalid { border-color: var(--down); }
+  button { font: inherit; color: var(--text); background: var(--group); border: 1px solid var(--line); border-radius: 7px;
+    padding: 6px 13px; cursor: pointer; white-space: nowrap; }
+  button:hover:not(:disabled) { background: var(--hover); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  button.primary:hover:not(:disabled) { filter: brightness(1.08); background: var(--accent); }
+  button.danger { background: var(--down); border-color: var(--down); color: #fff; }
+  button.quiet { border-color: transparent; background: none; color: var(--muted); padding: 4px 7px; }
+  button.quiet:hover:not(:disabled) { color: var(--text); background: var(--hover); }
+  button.quiet.remove:hover:not(:disabled) { color: var(--down); }
+  button.link { border: none; background: none; color: var(--accent); padding: 0; }
+  button:disabled { opacity: .45; cursor: default; }
+  .switch { display: inline-flex; align-items: center; gap: 9px; cursor: pointer; user-select: none; }
+  .switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+  .switch .track { width: 42px; height: 25px; border-radius: 13px; background: var(--unknown); position: relative; transition: background .15s; flex: none; }
+  .switch .track::after { content: ""; position: absolute; top: 3px; left: 3px; width: 19px; height: 19px; border-radius: 50%;
+    background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: left .15s; }
+  .switch input:checked + .track { background: var(--on); }
+  .switch input:checked + .track::after { left: 20px; }
+  .switch input:focus-visible + .track { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .switch:has(input:disabled) { opacity: .5; cursor: default; }
+  .switch.big .track { width: 52px; height: 31px; border-radius: 16px; }
+  .switch.big .track::after { width: 25px; height: 25px; }
+  .switch.big input:checked + .track::after { left: 24px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--unknown); }
+  .dot.up { background: var(--on); } .dot.down { background: var(--down); }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+  /* status: the one prominent element */
+  .status { background: var(--group); border-radius: 14px; box-shadow: var(--shadow); border: 1px solid var(--line);
+    padding: 20px 22px; margin-bottom: 26px; }
+  .status.on { background: linear-gradient(var(--on-soft), var(--on-soft)) padding-box; border-color: transparent; }
+  .status h1 { margin: 0; font-size: 1.9rem; line-height: 1.15; font-weight: 650; letter-spacing: -.01em; }
+  .status .route { margin-top: 4px; font-size: 1.05rem; }
+  .status .meta { margin-top: 14px; display: flex; gap: 18px; flex-wrap: wrap; align-items: center; }
+  .status .hint { margin-top: 10px; }
+  .manual { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); display: grid; gap: 8px; }
+  .manual .why { color: var(--down); }
+  .manual .fields { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; }
+
+  /* grouped lists */
+  section { margin-bottom: 28px; }
+  .section-head { display: flex; align-items: baseline; gap: 12px; margin: 0 4px 8px; }
+  .section-head h2 { font-size: 1.07rem; font-weight: 600; margin: 0; }
+  .section-head .note { flex: 1; color: var(--muted); font-size: .86rem; }
+  .group { background: var(--group); border: 1px solid var(--line); border-radius: 11px; box-shadow: var(--shadow); overflow: hidden; }
+  .item { padding: 11px 14px; position: relative; }
+  .item + .item::before { content: ""; position: absolute; top: 0; left: 14px; right: 0; border-top: 1px solid var(--line); }
+  .item .name { font-weight: 600; flex: none; max-width: 38%; }
+  .kind { color: var(--muted); font-size: .86rem; flex: none; }
+  .empty { padding: 26px 18px; text-align: center; }
+  .empty p { margin: 0 0 12px; }
+
+  .nodes { margin: 9px 0 1px 18px; display: grid; grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: 3px; }
+  .node { display: flex; align-items: center; gap: 7px; padding: 4px 8px; border-radius: 6px; border: 1px solid transparent;
+    background: none; font-size: .93rem; text-align: left; min-width: 0; }
+  .node:hover:not(:disabled) { background: var(--hover); }
+  .node:disabled { opacity: 1; cursor: default; }
+  .node.current { color: var(--accent); font-weight: 600; }
+  .node.pinned { border-color: var(--accent); background: var(--accent-soft); }
+  .node .ellipsis { flex: 1; }
+
+  /* routing */
+  .rule { display: grid; grid-template-columns: 26px 118px 1fr 16px 180px 30px; gap: 8px; align-items: center; }
+  .rule .arrow { color: var(--muted); text-align: center; }
+  .rule .err { grid-column: 3 / -1; color: var(--down); font-size: .86rem; }
+  .move { display: flex; flex-direction: column; }
+  .move button { padding: 0 4px; font-size: .7rem; line-height: 1.3; }
+  .footer { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-top: 1px solid var(--line); background: var(--hover); }
+  .msg { font-size: .86rem; color: var(--muted); }
+  .msg.bad { color: var(--down); }
+
+  /* chains */
+  .member { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+  .member .pos { width: 18px; text-align: right; color: var(--muted); }
+
+  /* sheets and dialogs */
+  .modal { position: fixed; inset: 0; background: rgba(15, 17, 20, .42); display: flex; align-items: flex-start;
+    justify-content: center; padding: 8vh 16px 16px; z-index: 10; overflow: auto; }
+  .sheet { background: var(--group); border-radius: 14px; box-shadow: 0 18px 50px rgba(0,0,0,.28); width: 100%; max-width: 560px; padding: 20px; }
+  .sheet.small { max-width: 420px; }
+  .sheet h2 { margin: 0 0 14px; font-size: 1.15rem; font-weight: 600; }
+  .sheet .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; align-items: center; }
+  .found { display: grid; grid-template-columns: 16px 1fr 150px; gap: 4px 10px; align-items: center; padding: 8px 0; }
+  .found + .found { border-top: 1px solid var(--line); }
+  .found .ok { color: var(--on); } .found .no { color: var(--down); }
+  .found .why { grid-column: 2 / -1; color: var(--down); font-size: .86rem; }
+  .fields { display: grid; grid-template-columns: 140px 1fr; gap: 10px 12px; align-items: center; margin-top: 12px; }
+  .fields label { color: var(--muted); }
+  .opt { font-size: .8rem; color: var(--muted); }
+  details.more summary { cursor: pointer; color: var(--accent); margin-top: 12px; list-style: none; }
+  details.more summary::-webkit-details-marker { display: none; }
+  details.more summary::before { content: "▸ "; } details.more[open] summary::before { content: "▾ "; }
+  .radio { display: inline-flex; align-items: center; gap: 5px; margin-right: 16px; cursor: pointer; color: var(--text); }
+  details.activity summary { cursor: pointer; font-weight: 600; font-size: 1.07rem; margin: 0 4px; }
+  .logs { max-height: 240px; overflow: auto; font: .8rem/1.5 ui-monospace, Menlo, Consolas, monospace; color: var(--muted);
+    white-space: pre-wrap; padding: 12px 14px; }
+  .banner { background: var(--group); border: 1px solid var(--down); color: var(--down); border-radius: 10px;
+    padding: 10px 14px; margin-bottom: 18px; white-space: pre-wrap; }
+
+  @media (max-width: 640px) {
+    .rule { grid-template-columns: 26px 1fr 30px; }
+    .rule .arrow { display: none; }
+    .rule > :nth-child(3), .rule > :nth-child(5) { grid-column: 2; }
+    .fields { grid-template-columns: 1fr; }
+    .found { grid-template-columns: 16px 1fr; } .found > input { grid-column: 2; }
+    .item .name { max-width: 50%; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <div id="noToken" class="banner hidden">This page needs its access key. Open it from the sshproxy tray icon, or with the link printed in the terminal.</div>
+  <div id="error" class="banner hidden"></div>
+
+  <div class="status" id="status">
+    <div class="row" style="align-items:flex-start">
+      <div class="grow">
+        <h1 id="statusTitle">sshproxy</h1>
+        <div class="route" id="statusRoute"></div>
+        <div class="muted small" id="statusNote" style="margin-top:4px"></div>
+      </div>
+      <label class="switch big" title="Send this computer's traffic through sshproxy. Remembered for next time.">
+        <span class="muted">System proxy</span>
+        <input type="checkbox" id="sysproxy"><span class="track"></span>
+      </label>
+    </div>
+    <div class="meta small">
+      <span><span class="muted">Proxy address</span> <code id="addr">…</code> <button class="link small" id="copy">Copy</button></span>
+      <button class="link small" id="manualOpen">Set up by hand</button>
+      <button class="link small" id="test" title="Check that sshproxy works and that this computer uses it">Test</button>
+      <span class="grow"></span>
+      <label class="switch hidden" id="autostartSwitch" title="Start sshproxy when you log in">
+        <input type="checkbox" id="autostart"><span class="track"></span><span>Start at login</span>
+      </label>
+    </div>
+    <div class="hint small hidden" id="cliHint">
+      Browsers and most apps now go through sshproxy. Terminal commands (curl, git, …) and apps with their own proxy setting don't, so routing rules don't apply to them.
+      <button class="link small" id="copyShell">Copy terminal command</button>
+    </div>
+    <div class="manual small hidden" id="manual">
+      <div class="why" id="manualWhy"></div>
+      <div>Enter this in your system's proxy settings for HTTP, HTTPS and SOCKS:</div>
+      <div class="fields">
+        <span><span class="muted">Server</span> <code id="manualHost"></code></span>
+        <span><span class="muted">Port</span> <code id="manualPort"></code></span>
+      </div>
+      <div class="muted" id="manualWhere"></div>
+      <div class="fields"><button class="link small" id="manualTest">Test it</button><button class="link small" id="manualClose">Hide</button></div>
+    </div>
+  </div>
+
+  <section>
+    <div class="section-head">
+      <h2>Servers</h2>
+      <span class="note">Click a node to always use it while it works.</span>
+      <button class="primary" id="openAdd">Add server</button>
+    </div>
+    <div class="group" id="sources"></div>
+  </section>
+
+  <section class="needsSources">
+    <div class="section-head">
+      <h2>Routing</h2>
+      <span class="note">Checked from the top; the first match decides.</span>
+    </div>
+    <div class="group">
+      <div id="routing"></div>
+      <div class="footer">
+        <button id="addRule">Add rule</button>
+        <span class="grow msg" id="routingMsg"></span>
+        <button id="revertRouting" class="hidden">Discard</button>
+        <button class="primary" id="saveRouting" disabled>Save</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="needsSources">
+    <div class="section-head">
+      <h2>Backup chains</h2>
+      <span class="note">Servers tried in order. Use a chain's name in routing.</span>
+      <button id="newChain">New chain</button>
+    </div>
+    <div class="group" id="chains"></div>
+  </section>
+
+  <section>
+    <details class="activity">
+      <summary>Activity</summary>
+      <div class="group" style="margin-top:8px">
+        <div class="logs" id="logs"></div>
+        <div class="footer small muted">Config file: <code id="cfgPath"></code></div>
+      </div>
+    </details>
+  </section>
+</main>
+
+<!-- add an SSH server -->
+<div class="modal hidden" id="addSheet">
+  <div class="sheet">
+    <div class="row" style="margin-bottom:14px"><h2 class="grow" style="margin:0">Add an SSH server</h2>
+      <button class="quiet" id="closeAdd" aria-label="Close">✕</button></div>
+
+    <form id="sshForm" autocomplete="off">
+      <div class="row">
+        <input type="text" id="sshHost" placeholder="1.2.3.4, root@1.2.3.4:2222 or a name from ~/.ssh/config" spellcheck="false" aria-label="Server">
+        <button class="primary" id="sshAdd">Connect</button>
+      </div>
+      <div class="msg" id="sshMsg" style="margin-top:6px">Only the server is needed. A password is asked for if the server wants one.</div>
+      <details class="more" id="sshMore">
+        <summary>More options</summary>
+        <div class="muted small" style="margin-top:6px">All optional. Empty fields use your SSH config, then the defaults shown.</div>
+        <div class="fields">
+          <label for="sshUser">Username</label>
+          <input type="text" id="sshUser" placeholder="your login name on this computer" spellcheck="false">
+          <label for="sshPort">Port</label>
+          <input type="text" id="sshPort" placeholder="22" style="max-width:120px">
+          <span class="muted">Log in with</span>
+          <div>
+            <label class="radio"><input type="radio" name="sshAuth" value="password" checked> Password</label>
+            <label class="radio"><input type="radio" name="sshAuth" value="key"> Key file</label>
+          </div>
+          <label for="sshPassword" id="sshSecretLabel">Password</label>
+          <div>
+            <input type="password" id="sshPassword" placeholder="asked for when needed">
+            <input type="text" id="sshKey" class="hidden" placeholder="your SSH keys" spellcheck="false">
+          </div>
+          <label for="sshJump">Jump host</label>
+          <input type="text" id="sshJump" placeholder="none" spellcheck="false">
+          <label for="sshName">Name</label>
+          <input type="text" id="sshName" placeholder="from the server" spellcheck="false">
+        </div>
+      </details>
+    </form>
+  </div>
+</div>
+
+<!-- SSH login questions -->
+<div class="modal hidden" id="promptModal">
+  <form class="sheet small" id="promptForm">
+    <h2 id="promptText"></h2>
+    <input id="promptInput" type="password" autocomplete="off">
+    <div class="actions">
+      <button type="button" id="promptCancel">Cancel</button>
+      <button class="primary">Log in</button>
+    </div>
+  </form>
+</div>
+
+<!-- confirmations, messages, single-field questions -->
+<div class="modal hidden" id="dialog">
+  <form class="sheet small" id="dialogForm">
+    <h2 id="dialogText" style="font-weight:500; white-space:pre-wrap"></h2>
+    <input type="text" id="dialogInput" class="hidden" autocomplete="off" spellcheck="false">
+    <div class="msg bad" id="dialogMsg" style="margin-top:6px"></div>
+    <div class="actions">
+      <button type="button" id="dialogCancel">Cancel</button>
+      <button class="primary" id="dialogOK">OK</button>
+    </div>
+  </form>
+</div>
+
+<!-- rename / SSH settings -->
+<div class="modal hidden" id="editModal">
+  <form class="sheet small" id="editForm">
+    <h2 id="editTitle"></h2>
+    <div class="fields" style="grid-template-columns: 110px 1fr; margin-top:0">
+      <label for="editName">Name</label>
+      <input type="text" id="editName" autocomplete="off" spellcheck="false">
+      <label for="editIdentity" class="sshOnly">Key file</label>
+      <input type="text" id="editIdentity" class="sshOnly" placeholder="your SSH keys" autocomplete="off" spellcheck="false">
+      <label for="editJump" class="sshOnly">Jump host</label>
+      <input type="text" id="editJump" class="sshOnly" placeholder="none" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="muted small" style="margin-top:8px">Rules and chains follow a new name.</div>
+    <div class="msg bad" id="editMsg" style="margin-top:6px"></div>
+    <div class="actions">
+      <button type="button" id="editCancel">Cancel</button>
+      <button class="primary" id="editSave">Save</button>
+    </div>
+  </form>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let token = location.hash.slice(1);
+try {
+  if (token) sessionStorage.setItem("token", token); else token = sessionStorage.getItem("token") || "";
+} catch (e) {}
+if (location.hash) history.replaceState(null, "", location.pathname);
+// A new link (e.g. after sshproxy restarted) carries a new key.
+window.addEventListener("hashchange", () => {
+  if (!location.hash.slice(1)) return;
+  token = location.hash.slice(1);
+  try { sessionStorage.setItem("token", token); } catch (e) {}
+  history.replaceState(null, "", location.pathname);
+  refresh();
+});
+
+async function api(method, path, body) {
+  const res = await fetch(path, {
+    method, headers: { "X-Token": token, "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (res.status === 401) throw new Error("sshproxy was restarted. Open this page again from the tray icon, or with the new link printed in the terminal.");
+  const data = await res.json().catch(() => ({ error: res.statusText }));
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+}
+
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const latency = n => n.latencyMs ? n.latencyMs + " ms" : (n.status === "down" ? "down" : "");
+const label = name => name === "fastest" ? "Fastest of all" : name === "direct" ? "Direct (no proxy)" : name;
+const kindLabel = k => ({ ssh: "SSH", fallback: "First that works", fastest: "Fastest" }[k] || k);
+const show = (id, on = true) => $(id).classList.toggle("hidden", !on);
+
+// ---------- dialogs ----------
+// The desktop app's web view doesn't show the browser's alert / confirm /
+// prompt (confirm silently returns false there), so everything is in-page.
+
+function dialog({ text, input, value = "", ok = "OK", cancel = "Cancel", danger = false, check }) {
+  return new Promise(resolve => {
+    $("dialogText").textContent = text;
+    show("dialogInput", !!input);
+    $("dialogInput").value = value;
+    $("dialogMsg").textContent = "";
+    $("dialogOK").textContent = ok;
+    $("dialogOK").className = danger ? "danger" : "primary";
+    show("dialogCancel", cancel !== null);
+    $("dialogCancel").textContent = cancel || "";
+    show("dialog");
+    (input ? $("dialogInput") : $("dialogOK")).focus();
+    const done = v => {
+      show("dialog", false);
+      $("dialogForm").onsubmit = $("dialogCancel").onclick = null;
+      resolve(v);
+    };
+    $("dialogForm").onsubmit = e => {
+      e.preventDefault();
+      if (!input) return done(true);
+      const v = $("dialogInput").value.trim(), err = check ? check(v) : "";
+      if (err) { $("dialogMsg").textContent = err; return; }
+      done(v);
+    };
+    $("dialogCancel").onclick = () => done(input ? null : false);
+  });
+}
+const confirmDialog = (text, ok) => dialog({ text, ok, danger: true });
+const showError = text => dialog({ text, cancel: null });
+
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  if (!$("dialog").classList.contains("hidden")) $("dialogCancel").click();
+  else if (!$("editModal").classList.contains("hidden")) show("editModal", false);
+  else if (!$("addSheet").classList.contains("hidden")) show("addSheet", false);
+});
+
+let st = null;            // last server state
+let routing = null;       // routing draft while it has unsaved changes
+let routingShown = "";
+let chains = {};          // chain drafts by name
+let chainsShown = "";
+let shownPrompt = 0, switchBusy = false;
+
+// ---------- status ----------
+
+// Follows "everything else" down through groups to the node in use.
+function routeSummary() {
+  const all = [...st.sources, ...st.groups];
+  let name = st.routing.default, path = [];
+  for (let i = 0; i < 8; i++) {
+    const g = all.find(x => x.name === name);
+    if (!g || !g.current) break;
+    path.push(name); name = g.current;
+  }
+  const top = all.find(x => x.name === st.routing.default);
+  return { node: name, via: path.filter(p => p !== "fastest"), latency: top && top.latencyMs };
+}
+
+function renderStatus() {
+  const n = st.sources.length;
+  $("status").classList.toggle("on", st.systemProxy && n > 0);
+  show("cliHint", st.systemProxy && n > 0);
+  if (n === 0) {
+    $("statusTitle").textContent = "Not set up yet";
+    $("statusRoute").textContent = "Add an SSH server to start.";
+    $("statusNote").textContent = "";
+    return;
+  }
+  $("statusTitle").textContent = st.loading ? "Applying changes…" : st.systemProxy ? "On" : "Off";
+  const r = routeSummary(), rules = st.routing.rules.length;
+  $("statusRoute").textContent = r.node === "direct" ? "Traffic goes out directly, without a proxy."
+    : `Traffic goes through ${r.node}` + (r.via.length ? ` in ${r.via.join(", ")}` : "") + (r.latency ? `, ${r.latency} ms.` : ".");
+  const notes = [];
+  if (rules) notes.push(`${rules} routing rule${rules > 1 ? "s" : ""} send some sites elsewhere.`);
+  if (!st.systemProxy) notes.push("Switch on System proxy to use it for this computer, or point apps at the address below.");
+  $("statusNote").textContent = notes.join(" ");
+}
+
+// ---------- sources ----------
+
+function renderNodes(s, pinnable) {
+  if (!s.nodes || !s.nodes.length) return "";
+  return `<div class="nodes">${s.nodes.map(n => {
+    const cls = [n.name === s.current ? "current" : "", n.name === s.pinned ? "pinned" : ""].join(" ");
+    const title = n.name === s.pinned ? "Pinned. Click to go back to automatic." : "Click to always use this one while it works";
+    return `<button type="button" class="node ${cls}" ${pinnable ? `data-pin="${esc(s.name)}" data-node="${esc(n.name)}"` : "disabled"} title="${esc(title)}">
+      <span class="dot ${n.status}"></span><span class="ellipsis">${n.name === s.pinned ? "📌 " : ""}${esc(n.name)}</span>
+      <span class="muted small num">${latency(n)}</span></button>`;
+  }).join("")}</div>`;
+}
+
+function renderItem(s, opts) {
+  const info = s.current ? `using ${esc(s.current)}${s.pinned ? ", pinned" : ""}` : esc(s.detail);
+  return `<div class="item">
+    <div class="row">
+      <span class="dot ${s.status}"></span>
+      <span class="name ellipsis">${esc(label(s.name))}</span>
+      <span class="kind">${esc(kindLabel(s.kind))}</span>
+      <span class="grow muted small ellipsis" title="${esc(s.detail || "")}">${info}</span>
+      <span class="muted small num">${latency(s)}</span>
+      ${opts.edit ? `<button class="quiet" data-edit="${esc(s.name)}" title="Rename${s.kind === "ssh" ? " or change SSH settings" : ""}" aria-label="Edit">✎</button>` : ""}
+      ${opts.remove ? `<button class="quiet remove" data-remove="${esc(s.name)}" title="Remove" aria-label="Remove">✕</button>` : ""}
+    </div>
+    ${renderNodes(s, opts.pin)}
+  </div>`;
+}
+
+function renderSources() {
+  if (!st.sources.length) {
+    $("sources").innerHTML = `<div class="empty"><p>No servers yet. Add an SSH server you can log in to.</p>
+      <button class="primary" data-add>Add server</button></div>`;
+    return;
+  }
+  const items = st.sources.map(s => renderItem(s, { edit: true, remove: true }));
+  const fastest = st.groups.find(g => g.name === "fastest");
+  if (fastest) items.push(renderItem({ ...fastest, kind: "built-in" }, { pin: true }));
+  $("sources").innerHTML = items.join("");
+}
+
+$("sources").onclick = async e => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  if (b.hasAttribute("data-add")) return openAdd();
+  if (b.dataset.edit) return openEdit(st.sources.find(s => s.name === b.dataset.edit));
+  if (b.dataset.remove) {
+    if (!await confirmDialog(`Remove "${b.dataset.remove}"?\nRules and chains that use it are updated.`, "Remove")) return;
+    try { await api("DELETE", "/api/sources/" + encodeURIComponent(b.dataset.remove)); chainsShown = routingShown = ""; }
+    catch (err) { await showError(err.message); }
+  } else if (b.dataset.pin) {
+    const g = [...st.sources, ...st.groups].find(x => x.name === b.dataset.pin);
+    try { await api("PUT", "/api/pins/" + encodeURIComponent(b.dataset.pin), { member: g && g.pinned === b.dataset.node ? "" : b.dataset.node }); }
+    catch (err) { await showError(err.message); }
+  }
+  refresh();
+};
+
+// ---------- rename / SSH settings ----------
+
+let editing = null;
+function openEdit(s) {
+  editing = s;
+  $("editTitle").textContent = s.kind === "ssh" ? `Edit ${s.name}` : `Rename ${s.name}`;
+  $("editName").value = s.name;
+  $("editIdentity").value = s.identity || "";
+  $("editJump").value = s.jump || "";
+  document.querySelectorAll(".sshOnly").forEach(el => el.classList.toggle("hidden", s.kind !== "ssh"));
+  $("editMsg").textContent = "";
+  show("editModal");
+  $("editName").focus();
+}
+$("editCancel").onclick = () => show("editModal", false);
+$("editForm").onsubmit = async e => {
+  e.preventDefault();
+  const s = editing, name = $("editName").value.trim().toLowerCase();
+  $("editSave").disabled = true;
+  $("editMsg").textContent = "";
+  try {
+    if (s.kind === "ssh" && ($("editIdentity").value.trim() !== (s.identity || "") || $("editJump").value.trim() !== (s.jump || "")))
+      await api("PUT", `/api/sources/${encodeURIComponent(s.name)}/ssh`, { identity: $("editIdentity").value, jump: $("editJump").value });
+    if (name !== s.name) await api("POST", "/api/rename", { from: s.name, to: name });
+    show("editModal", false);
+    chainsShown = routingShown = "";
+  } catch (err) { $("editMsg").textContent = err.message; }
+  $("editSave").disabled = false;
+  refresh();
+};
+
+// ---------- add a server ----------
+
+function openAdd() {
+  show("addSheet");
+  $("sshHost").focus();
+}
+$("openAdd").onclick = openAdd;
+$("closeAdd").onclick = () => show("addSheet", false);
+$("addSheet").onclick = e => { if (e.target === $("addSheet")) show("addSheet", false); };
+
+function updateSSHAuth() {
+  const key = document.querySelector('input[name="sshAuth"]:checked').value === "key";
+  show("sshPassword", !key);
+  show("sshKey", key);
+  $("sshSecretLabel").textContent = key ? "Key file" : "Password";
+}
+document.querySelectorAll('input[name="sshAuth"]').forEach(r => r.onchange = updateSSHAuth);
+const sshHint = "Only the server is needed. A password is asked for if the server wants one.";
+$("sshForm").onsubmit = async e => {
+  e.preventDefault();
+  const key = document.querySelector('input[name="sshAuth"]:checked').value === "key";
+  const form = {
+    host: $("sshHost").value.trim(), port: $("sshPort").value.trim(), user: $("sshUser").value.trim(),
+    password: key ? "" : $("sshPassword").value, identity: key ? $("sshKey").value.trim() : "",
+    jump: $("sshJump").value.trim(), name: $("sshName").value.trim().toLowerCase(),
+  };
+  if (!form.host) { $("sshMsg").textContent = "Enter the server."; $("sshMsg").className = "msg bad"; $("sshHost").focus(); return; }
+  $("sshAdd").disabled = true;
+  $("sshMsg").className = "msg";
+  $("sshMsg").textContent = "Connecting…";
+  try {
+    await api("POST", "/api/ssh", form);
+    $("sshForm").reset(); updateSSHAuth();
+    $("sshMsg").textContent = sshHint;
+    show("addSheet", false);
+    chainsShown = routingShown = "";
+  } catch (err) { $("sshMsg").textContent = err.message; $("sshMsg").className = "msg bad"; }
+  $("sshAdd").disabled = false;
+  refresh();
+};
+
+// ---------- routing ----------
+
+function outboundOptions(selected) {
+  const known = st.outbounds.some(o => o.name === selected);
+  return st.outbounds.map(o => `<option value="${esc(o.name)}" ${o.name === selected ? "selected" : ""}>
+    ${esc(label(o.name))}${o.kind === "chain" ? " (chain)" : ""}${o.status === "down" ? " (down)" : ""}</option>`).join("")
+    + (known ? "" : `<option value="${esc(selected)}" selected>${esc(selected)} (missing)</option>`);
+}
+
+const looksLikeIP = v => /^[0-9.]+(\/\d{1,2})?$|^[0-9a-f:]+(\/\d{1,3})?$/i.test(v) && /[.:]/.test(v) && !/^[0-9]+\.?$/.test(v);
+function checkRule(r) {
+  const v = r.value.trim();
+  if (!v) return "Enter a " + (r.match === "ip" ? "IP address or range" : "domain");
+  const ip = looksLikeIP(v);
+  if (r.match === "ip" && !ip) return "Use an IP address like 192.168.1.10 or a range like 10.0.0.0/8";
+  if (r.match === "domain" && (ip || !/^(\*\.)?[a-z0-9-]+(\.[a-z0-9-]+)*\.?$/i.test(v)))
+    return "Use a domain like example.com (it also matches its subdomains)";
+  return "";
+}
+
+function renderRouting() {
+  const r = routing || st.routing;
+  const rows = r.rules.map((rule, i) => {
+    const err = routing ? checkRule(rule) : "";
+    return `<div class="item"><div class="rule" data-i="${i}">
+      <span class="move"><button class="quiet" data-up="${i}" ${i === 0 ? "disabled" : ""} aria-label="Move up">▲</button>
+        <button class="quiet" data-down="${i}" ${i === r.rules.length - 1 ? "disabled" : ""} aria-label="Move down">▼</button></span>
+      <select data-field="match" aria-label="Match">
+        <option value="domain" ${rule.match === "domain" ? "selected" : ""}>Domain</option>
+        <option value="ip" ${rule.match === "ip" ? "selected" : ""}>IP or range</option>
+      </select>
+      <input type="text" data-field="value" value="${esc(rule.value)}" class="${err ? "invalid" : ""}" spellcheck="false"
+        placeholder="${rule.match === "ip" ? "10.0.0.0/8" : "example.com"}" aria-label="Value">
+      <span class="arrow">→</span>
+      <select data-field="out" aria-label="Go through">${outboundOptions(rule.out)}</select>
+      <button class="quiet remove" data-del="${i}" aria-label="Remove rule">✕</button>
+      ${err ? `<div class="err">${esc(err)}</div>` : ""}
+    </div></div>`;
+  }).join("");
+  $("routing").innerHTML = rows + `<div class="item"><div class="rule">
+      <span></span><span class="muted" style="grid-column: 2 / 4">Everything else</span><span class="arrow">→</span>
+      <select id="defaultOut" aria-label="Everything else goes through">${outboundOptions(r.default)}</select><span></span>
+    </div></div>`;
+  const dirty = routing !== null;
+  $("saveRouting").disabled = !dirty || r.rules.some(x => checkRule(x));
+  show("revertRouting", dirty);
+  if (dirty) { $("routingMsg").textContent = "Unsaved changes"; $("routingMsg").className = "grow msg"; }
+}
+
+function editRouting(f) {
+  routing = routing || structuredClone(st.routing);
+  f(routing);
+  renderRouting();
+}
+
+$("routing").onchange = e => {
+  if (e.target.id === "defaultOut") return editRouting(r => r.default = e.target.value);
+  const row = e.target.closest(".rule[data-i]"), field = e.target.dataset.field;
+  if (row && field) editRouting(r => r.rules[row.dataset.i][field] = e.target.value);
+};
+$("routing").oninput = e => {
+  const row = e.target.closest(".rule[data-i]");
+  if (!row || e.target.dataset.field !== "value") return;
+  routing = routing || structuredClone(st.routing);
+  const rule = routing.rules[row.dataset.i];
+  rule.value = e.target.value;
+  // Follow what is typed: an address means an IP rule, letters a domain.
+  const v = rule.value.trim();
+  if (v && /[.:]/.test(v) && (looksLikeIP(v) || /[a-z]/i.test(v))) {
+    rule.match = looksLikeIP(v) ? "ip" : "domain";
+    row.querySelector('select[data-field="match"]').value = rule.match;
+  }
+  // Don't re-render while typing (it would drop focus); just update hints.
+  const err = checkRule(rule);
+  e.target.classList.toggle("invalid", !!err);
+  let hint = row.querySelector(".err");
+  if (err && !hint) { hint = document.createElement("div"); hint.className = "err"; row.appendChild(hint); }
+  if (hint) err ? hint.textContent = err : hint.remove();
+  $("saveRouting").disabled = routing.rules.some(x => checkRule(x));
+  show("revertRouting");
+  $("routingMsg").textContent = "Unsaved changes"; $("routingMsg").className = "grow msg";
+};
+$("routing").onclick = e => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  const swap = (r, a, c) => [r.rules[a], r.rules[c]] = [r.rules[c], r.rules[a]];
+  if (b.dataset.del !== undefined) editRouting(r => r.rules.splice(+b.dataset.del, 1));
+  if (b.dataset.up !== undefined) editRouting(r => swap(r, +b.dataset.up, +b.dataset.up - 1));
+  if (b.dataset.down !== undefined) editRouting(r => swap(r, +b.dataset.down, +b.dataset.down + 1));
+};
+$("addRule").onclick = () => {
+  const first = st.outbounds.find(o => o.name !== "direct" && o.name !== "fastest") || st.outbounds[0];
+  editRouting(r => r.rules.push({ match: "domain", value: "", out: first ? first.name : "direct" }));
+  const inputs = $("routing").querySelectorAll('input[data-field="value"]');
+  inputs[inputs.length - 1]?.focus();
+};
+$("revertRouting").onclick = () => { routing = null; $("routingMsg").textContent = ""; renderRouting(); };
+$("saveRouting").onclick = async () => {
+  $("saveRouting").disabled = true;
+  $("routingMsg").textContent = "Saving…"; $("routingMsg").className = "grow msg";
+  try {
+    await api("PUT", "/api/routing", routing);
+    routing = null; routingShown = "";
+    $("routingMsg").textContent = "Saved.";
+  } catch (err) {
+    $("routingMsg").textContent = err.message; $("routingMsg").className = "grow msg bad";
+    $("saveRouting").disabled = false;
+  }
+  refresh();
+};
+
+// ---------- backup chains ----------
+
+function serverChains() {
+  const out = {};
+  for (const g of st.groups) if (g.name !== "fastest")
+    out[g.name] = { policy: g.kind, members: (g.nodes || []).map(n => n.name) };
+  return out;
+}
+
+function renderChains() {
+  const server = serverChains();
+  const names = [...new Set([...Object.keys(server), ...Object.keys(chains)])].sort();
+  if (!names.length) {
+    $("chains").innerHTML = `<div class="empty"><p class="muted">No chains. A chain uses its first server and moves to the next when it fails.</p></div>`;
+    return;
+  }
+  const usable = st.outbounds.filter(o => o.name !== "fastest");
+  $("chains").innerHTML = names.map(name => {
+    const c = chains[name] || server[name], dirty = !!chains[name], isNew = !server[name];
+    const g = st.groups.find(x => x.name === name);
+    const status = g ? Object.fromEntries((g.nodes || []).map(n => [n.name, n])) : {};
+    const members = c.members.map((m, i) => `<div class="member">
+        <span class="pos num">${i + 1}</span>
+        <span class="dot ${status[m]?.status || ""}"></span>
+        <span class="grow ellipsis">${esc(label(m))}${g && g.current === m ? ` <span class="muted small">in use${g.pinned === m ? ", pinned" : ""}</span>` : ""}</span>
+        <span class="muted small num">${status[m] ? latency(status[m]) : ""}</span>
+        ${g && !dirty ? `<button class="quiet" data-pinchain="${esc(m)}" title="${g.pinned === m ? "Unpin" : "Always use this one while it works"}" aria-label="Pin">${g.pinned === m ? "📌" : "⌖"}</button>` : ""}
+        <button class="quiet" data-mup="${i}" ${i === 0 ? "disabled" : ""} aria-label="Move up">▲</button>
+        <button class="quiet" data-mdown="${i}" ${i === c.members.length - 1 ? "disabled" : ""} aria-label="Move down">▼</button>
+        <button class="quiet remove" data-mdel="${i}" aria-label="Remove from chain">✕</button>
+      </div>`).join("");
+    const addable = usable.filter(o => o.name !== name && !c.members.includes(o.name));
+    return `<div class="item" data-chain="${esc(name)}">
+      <div class="row">
+        <span class="dot ${g ? g.status : ""}"></span>
+        <span class="name">${esc(name)}</span>
+        <select data-policy aria-label="Policy">
+          <option value="fallback" ${c.policy === "fallback" ? "selected" : ""}>Use the first that works</option>
+          <option value="fastest" ${c.policy === "fastest" ? "selected" : ""}>Use the fastest</option>
+        </select>
+        <span class="grow"></span>
+        ${isNew ? "" : `<button class="quiet" data-renamechain aria-label="Rename">✎</button>`}
+        <button class="quiet remove" data-delchain aria-label="Delete chain">✕</button>
+      </div>
+      <div style="margin:8px 0 4px">${members || `<div class="muted small">Add at least one server.</div>`}</div>
+      <div class="row">
+        <select data-addmember ${addable.length ? "" : "disabled"} aria-label="Add a server to the chain">
+          <option value="">Add a server…</option>
+          ${addable.map(o => `<option value="${esc(o.name)}">${esc(label(o.name))}${o.kind === "chain" ? " (chain)" : ""}</option>`).join("")}
+        </select>
+        <span class="grow msg" data-msg>${dirty ? "Unsaved changes" : ""}</span>
+        ${dirty ? `<button data-revert>Discard</button>` : ""}
+        ${dirty ? `<button class="primary" data-save ${c.members.length ? "" : "disabled"}>Save</button>` : ""}
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function editChain(name, f) {
+  chains[name] = chains[name] || structuredClone(serverChains()[name]);
+  f(chains[name]);
+  renderChains();
+}
+
+$("chains").onchange = e => {
+  const name = e.target.closest("[data-chain]")?.dataset.chain;
+  if (!name) return;
+  if (e.target.matches("[data-policy]")) editChain(name, c => c.policy = e.target.value);
+  if (e.target.matches("[data-addmember]") && e.target.value) editChain(name, c => c.members.push(e.target.value));
+};
+$("chains").onclick = async e => {
+  const b = e.target.closest("button"), box = e.target.closest("[data-chain]");
+  if (!b || !box) return;
+  const name = box.dataset.chain;
+  const swap = (c, a, d) => [c.members[a], c.members[d]] = [c.members[d], c.members[a]];
+  if (b.dataset.mup !== undefined) return editChain(name, c => swap(c, +b.dataset.mup, +b.dataset.mup - 1));
+  if (b.dataset.mdown !== undefined) return editChain(name, c => swap(c, +b.dataset.mdown, +b.dataset.mdown + 1));
+  if (b.dataset.mdel !== undefined) return editChain(name, c => c.members.splice(+b.dataset.mdel, 1));
+  if (b.hasAttribute("data-revert")) { delete chains[name]; return renderChains(); }
+  if (b.hasAttribute("data-renamechain")) return openEdit({ name, kind: "chain" });
+  const msg = box.querySelector("[data-msg]");
+  try {
+    if (b.dataset.pinchain !== undefined) {
+      const g = st.groups.find(x => x.name === name);
+      await api("PUT", "/api/pins/" + encodeURIComponent(name), { member: g.pinned === b.dataset.pinchain ? "" : b.dataset.pinchain });
+    } else if (b.hasAttribute("data-delchain")) {
+      if (serverChains()[name]) {
+        if (!await confirmDialog(`Delete chain "${name}"?\nRules that use it are removed.`, "Delete")) return;
+        await api("DELETE", "/api/groups/" + encodeURIComponent(name));
+      }
+      delete chains[name];
+    } else if (b.hasAttribute("data-save")) {
+      msg.textContent = "Saving…"; msg.className = "grow msg";
+      await api("PUT", "/api/groups/" + encodeURIComponent(name), chains[name]);
+      delete chains[name];
+    }
+    chainsShown = routingShown = "";
+  } catch (err) { msg.textContent = err.message; msg.className = "grow msg bad"; return; }
+  refresh();
+};
+$("newChain").onclick = async () => {
+  const taken = n => st.outbounds.some(o => o.name === n) || chains[n];
+  let value = "main";
+  for (let i = 2; taken(value); i++) value = "main" + i;
+  const name = await dialog({
+    text: "Name the new chain", input: true, value, ok: "Create",
+    check: v => !/^[a-z0-9_-]+$/.test(v) ? "Use lowercase letters, digits, - and _."
+      : taken(v) ? `"${v}" is already used.` : "",
+  });
+  if (!name) return;
+  chains[name] = { policy: "fallback", members: [] };
+  renderChains();
+};
+
+// ---------- state ----------
+
+function render() {
+  $("addr").textContent = st.proxy;
+  $("cfgPath").textContent = st.configPath;
+  if (!switchBusy) $("sysproxy").checked = st.systemProxy;
+  show("autostartSwitch", st.autostart !== undefined);
+  if (!switchBusy && st.autostart !== undefined) $("autostart").checked = st.autostart;
+  $("error").textContent = st.error || "";
+  show("error", !!st.error);
+  renderStatus();
+  renderManual();
+  renderSources();
+  const has = st.sources.length > 0;
+  document.querySelectorAll(".needsSources").forEach(el => el.classList.toggle("hidden", !has));
+  show("openAdd", has);
+  $("sysproxy").disabled = !has && !st.systemProxy;
+
+  // Editors re-render only when the server's version changed and there are
+  // no unsaved edits, so typing and open dropdowns aren't interrupted.
+  const r = JSON.stringify([st.routing, st.outbounds]);
+  if (routing === null && r !== routingShown && !document.activeElement?.closest("#routing")) {
+    routingShown = r; renderRouting();
+  }
+  const c = JSON.stringify([st.groups, st.outbounds]);
+  if (c !== chainsShown && !document.activeElement?.closest("#chains")) { chainsShown = c; renderChains(); }
+
+  const logs = $("logs"), atBottom = logs.scrollTop + logs.clientHeight >= logs.scrollHeight - 4;
+  logs.textContent = (st.logs || []).join("\n") || "Nothing yet.";
+  if (atBottom) logs.scrollTop = logs.scrollHeight;
+
+  const p = st.prompt;
+  show("promptModal", !!p);
+  if (p && p.id !== shownPrompt) {
+    shownPrompt = p.id;
+    $("promptText").textContent = p.text.replace(/:\s*$/, ""); // terminal-style trailing colon
+    $("promptInput").type = p.secret ? "password" : "text";
+    $("promptInput").value = "";
+    $("promptInput").focus();
+  }
+}
+
+async function refresh() {
+  try { st = await api("GET", "/api/state"); render(); }
+  catch (e) { $("error").textContent = e.message; show("error"); }
+}
+
+async function toggle(e, path) {
+  switchBusy = true;
+  try { await api("POST", path, { enabled: e.target.checked }); }
+  catch (err) {
+    e.target.checked = !e.target.checked;
+    // The system proxy's failure shows next to the address instead.
+    if (e.target.id !== "sysproxy") showError(err.message);
+  }
+  switchBusy = false;
+  refresh();
+}
+$("sysproxy").onchange = e => { manualHidden = ""; toggle(e, "/api/system-proxy"); };
+$("autostart").onchange = e => toggle(e, "/api/autostart");
+
+// Shown when switching the system proxy on failed, or on request.
+let manualOpen = false, manualHidden = "";
+// A function, not a value: the Linux text needs st, which is null at load.
+const manualWhere = () => {
+  const p = navigator.userAgent;
+  if (/Mac/.test(p)) return "macOS: System Settings → Network → your network → Details → Proxies.";
+  if (/Win/.test(p)) return "Windows: Settings → Network & internet → Proxy → Manual proxy setup (it takes HTTP only; use the same server and port).";
+  return "GNOME: Settings → Network → Network Proxy → Manual. KDE: System Settings → Network → Proxy → Use manually specified proxy configuration. Other desktops and apps: their own proxy settings, or the http_proxy / https_proxy environment variables (http://" + st.proxy + ").";
+};
+function renderManual() {
+  const err = st.systemProxyError || "";
+  const visible = manualOpen || (err && err !== manualHidden);
+  show("manual", !!visible);
+  if (!visible) return;
+  const i = st.proxy.lastIndexOf(":");
+  $("manualHost").textContent = st.proxy.slice(0, i);
+  $("manualPort").textContent = st.proxy.slice(i + 1);
+  $("manualWhy").textContent = err ? "Couldn't switch on the system proxy: " + err : "";
+  show("manualWhy", !!err);
+  $("manualWhere").textContent = manualWhere();
+}
+$("manualOpen").onclick = () => { manualOpen = true; renderManual(); };
+$("manualClose").onclick = () => { manualOpen = false; manualHidden = st.systemProxyError || ""; renderManual(); };
+
+// test checks sshproxy itself from the server side, then whether this
+// page's own requests go through it: check.sshproxy.invalid only answers
+// when they do.
+async function test() {
+  const lines = [];
+  try {
+    const r = await api("POST", "/api/check");
+    lines.push(r.ok ? `✓ sshproxy works: a test request went through in ${r.latencyMs} ms.`
+      : `✗ A test request through sshproxy failed: ${r.error}`);
+    let used = false;
+    try {
+      await fetch("http://check.sshproxy.invalid/?" + Date.now(), { cache: "no-store", signal: AbortSignal.timeout(5000) });
+      used = true;
+    } catch (e) {}
+    if (used || r.settingsSet) {
+      lines.push(used ? "✓ This computer's web traffic goes through sshproxy."
+        : "✓ The system proxy settings point at sshproxy. Apps with their own proxy settings may still need them changed.");
+      lines.push("Terminal commands (curl, git, …) ignore the system proxy. Use “Copy terminal command” and paste it into the terminal first.");
+    } else lines.push("✗ This computer's web traffic doesn't go through sshproxy yet. Switch on System proxy, or use “Set up by hand”.");
+  } catch (e) { lines.push("✗ " + e.message); }
+  await dialog({ text: lines.join("\n\n"), cancel: null });
+}
+$("test").onclick = test;
+$("manualTest").onclick = test;
+
+// shellLine points terminal commands in one shell at sshproxy.
+function shellLine() {
+  const p = "http://" + st.proxy;
+  return /Win/.test(navigator.userAgent) ? `$env:HTTP_PROXY="${p}"; $env:HTTPS_PROXY="${p}"`
+    : `export http_proxy=${p} https_proxy=${p}`;
+}
+$("copyShell").onclick = () => {
+  navigator.clipboard?.writeText(shellLine());
+  $("copyShell").textContent = "Copied, paste it into your terminal";
+  setTimeout(() => $("copyShell").textContent = "Copy terminal command", 2500);
+};
+
+$("copy").onclick = () => {
+  navigator.clipboard?.writeText("http://" + $("addr").textContent);
+  $("copy").textContent = "Copied"; setTimeout(() => $("copy").textContent = "Copy", 1500);
+};
+
+async function answer(cancel) {
+  const id = shownPrompt;
+  show("promptModal", false);
+  try { await api("POST", "/api/prompt", { id, answer: $("promptInput").value, cancel }); } catch (e) {}
+  $("promptInput").value = "";
+  refresh();
+}
+$("promptForm").onsubmit = e => { e.preventDefault(); answer(false); };
+$("promptCancel").onclick = () => answer(true);
+
+if (!token) show("noToken");
+else { refresh(); setInterval(refresh, 2000); }
+</script>
+</body>
+</html>
