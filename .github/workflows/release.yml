@@ -1,0 +1,31 @@
+# Pushing a tag like v0.2.0 tests, builds every platform and publishes the
+# release. Running it by hand only tests and builds.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    # macOS, so the .app gets signed (ad hoc); everything else cross-compiles.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - run: go test ./...
+      - run: make release VERSION="${GITHUB_REF_NAME#v}"
+      - if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" \
+            --notes-file .github/release-notes.md --generate-notes \
+            dist/desktop/*.zip dist/desktop/sshproxy-windows-* dist/desktop/sshproxy-linux-* \
+            dist/sshproxy-cli-*

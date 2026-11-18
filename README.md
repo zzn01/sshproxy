@@ -289,3 +289,10 @@ make test
 make desktop   # ./sshproxy-desktop (desktop app for this machine)
 make release   # dist/sshproxy-cli-<os>-<arch> and the desktop apps in dist/desktop/
 ```
+
+To publish a release, push a version tag; GitHub Actions tests, builds
+and uploads everything to the releases page:
+
+```
+git tag v0.2.0 && git push origin v0.2.0
+```

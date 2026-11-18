@@ -3,3 +3,4 @@ sshproxy
 dist/
 sshproxy-desktop
 proxy-over-ssh
+!.github/
