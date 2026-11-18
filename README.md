@@ -17,6 +17,9 @@ There are two versions:
 
 ### 1. Get the file for your computer
 
+Download it from the
+[releases page](https://github.com/zzn01/sshproxy/releases).
+
 | Computer | File |
 |---|---|
 | Mac with Apple chip (M1, M2, …) | `sshproxy-macos-arm64.zip` |
@@ -157,9 +160,11 @@ one is fastest right now.
 
 ### Install
 
-Download the file for your system (`sshproxy-<os>-<arch>`, e.g.
-`sshproxy-darwin-arm64` for an Apple-chip Mac), rename it to `sshproxy`
-and put it in a folder on your `PATH`.
+Download the file for your system from the
+[releases page](https://github.com/zzn01/sshproxy/releases)
+(`sshproxy-cli-<os>-<arch>`, e.g. `sshproxy-cli-darwin-arm64` for an
+Apple-chip Mac), rename it to `sshproxy` and put it in a folder on your
+`PATH`.
 
 The files aren't code-signed, so the first run shows a warning:
 
@@ -282,5 +287,5 @@ use domain rules for domain names.
 make build     # ./sshproxy
 make test
 make desktop   # ./sshproxy-desktop (desktop app for this machine)
-make release   # dist/sshproxy-<os>-<arch> and the desktop apps in dist/desktop/
+make release   # dist/sshproxy-cli-<os>-<arch> and the desktop apps in dist/desktop/
 ```

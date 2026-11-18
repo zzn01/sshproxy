@@ -17,14 +17,14 @@ test:
 	go test -race ./...
 
 # Command line builds plus desktop apps for every platform, all from one
-# machine: dist/sshproxy-<os>-<arch>[.exe] and dist/desktop/.
+# machine: dist/sshproxy-cli-<os>-<arch>[.exe] and dist/desktop/.
 release:
 	@mkdir -p dist/desktop
 	@for p in $(PLATFORMS); do \
 		os=$${p%/*}; arch=$${p#*/}; ext=; [ $$os = windows ] && ext=.exe; \
-		echo "dist/$(BIN)-$$os-$$arch$$ext"; \
+		echo "dist/$(BIN)-cli-$$os-$$arch$$ext"; \
 		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -ldflags "-s -w" \
-			-o dist/$(BIN)-$$os-$$arch$$ext . || exit 1; \
+			-o dist/$(BIN)-cli-$$os-$$arch$$ext . || exit 1; \
 	done
 	@for p in $(PLATFORMS); do \
 		os=$${p%/*}; arch=$${p#*/}; \
