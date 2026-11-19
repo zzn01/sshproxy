@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/ebitengine/purego"
+	"github.com/godbus/dbus/v5"
 )
 
 // windowSupport reports why the app window can't be shown, or nil. Wails
@@ -22,4 +23,16 @@ func windowSupport() error {
 		}
 	}
 	return nil
+}
+
+// hasTray reports whether the desktop shows tray icons. Plain GNOME (e.g.
+// Fedora) doesn't without the AppIndicator extension.
+func hasTray() bool {
+	conn, err := dbus.SessionBus()
+	if err != nil {
+		return false
+	}
+	var ok bool
+	err = conn.BusObject().Call("org.freedesktop.DBus.NameHasOwner", 0, "org.kde.StatusNotifierWatcher").Store(&ok)
+	return err == nil && ok
 }

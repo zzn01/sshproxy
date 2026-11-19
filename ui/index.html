@@ -178,6 +178,7 @@
         <input type="checkbox" id="autostart"><span class="track"></span><span>Start at login</span>
       </label>
     </div>
+    <div class="hint small hidden" id="reopenHint"></div>
     <div class="hint small hidden" id="cliHint">
       Browsers and most apps now go through sshproxy. Terminal commands (curl, git, …) and apps with their own proxy setting don't, so routing rules don't apply to them.
       <button class="link small" id="copyShell">Copy terminal command</button>
@@ -801,6 +802,8 @@ $("newChain").onclick = async () => {
 function render() {
   $("addr").textContent = st.proxy;
   $("cfgPath").textContent = st.configPath;
+  $("reopenHint").textContent = st.reopenHint || "";
+  show("reopenHint", !!st.reopenHint);
   if (!switchBusy) $("sysproxy").checked = st.systemProxy;
   show("autostartSwitch", st.autostart !== undefined);
   if (!switchBusy && st.autostart !== undefined) $("autostart").checked = st.autostart;

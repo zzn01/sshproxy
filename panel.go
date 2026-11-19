@@ -30,6 +30,9 @@ type panel struct {
 
 	// autostart controls starting at login; nil where it isn't supported.
 	autostart autostarter
+	// reopenHint tells how to get back to the panel when there's no tray
+	// icon; empty when there is one.
+	reopenHint string
 
 	mu          sync.Mutex
 	systemProxy bool   // set by us
@@ -116,6 +119,7 @@ type (
 		SystemProxy bool           `json:"systemProxy"`
 		ProxyError  string         `json:"systemProxyError,omitempty"`
 		Autostart   *bool          `json:"autostart,omitempty"` // nil: not available in this build
+		ReopenHint  string         `json:"reopenHint,omitempty"`
 		Loading     bool           `json:"loading"`
 		Error       string         `json:"error,omitempty"`
 		Sources     []sourceState  `json:"sources"`
@@ -204,6 +208,7 @@ func (p *panel) state(*http.Request) (any, error) {
 		ConfigPath:  e.path,
 		SystemProxy: p.systemProxyOn(),
 		ProxyError:  p.systemProxyError(),
+		ReopenHint:  p.reopenHint,
 		Loading:     loading,
 		Sources:     []sourceState{},
 		Groups:      []sourceState{},

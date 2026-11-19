@@ -67,8 +67,12 @@ func newTray() *tray {
 // returning, so shutdown runs as Wails' shutdown hook.
 func (t *tray) run(ctx context.Context, p *panel, firstRun bool, shutdown func()) {
 	if t.app == nil {
+		p.reopenHint = "Closing this tab keeps sshproxy running. To come back here, open sshproxy again."
 		runInBrowser(ctx, p, firstRun)
 		return
+	}
+	if !hasTray() {
+		p.reopenHint = "This desktop shows no sshproxy icon. Closing this window keeps sshproxy running; to come back here, open sshproxy again."
 	}
 	t.p = p
 	app := t.app

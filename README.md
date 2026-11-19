@@ -52,12 +52,11 @@ The first time, the sshproxy window opens by itself. After that sshproxy
 lives in the menu bar (Mac) or the system tray (Windows, Linux): click its
 icon and choose **Open sshproxy** to show the window.
 
-On Linux the tray icon needs a desktop that shows app indicators: KDE,
-Ubuntu, Cinnamon and most others do. Plain GNOME (e.g. Fedora) needs the
-"AppIndicator and KStatusNotifierItem Support" extension
-(`sudo dnf install gnome-shell-extension-appindicator`, then log out and
-back in). Without it there is no icon; to get the window back, open
-sshproxy again.
+Some Linux desktops (plain GNOME, e.g. Fedora) show no tray icon; the
+window says so. There, open sshproxy again to get the window back. For
+an icon, install the "AppIndicator and KStatusNotifierItem Support"
+extension (`sudo dnf install gnome-shell-extension-appindicator`) and log
+out and back in.
 
 ### 3. Add your server
 
