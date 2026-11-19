@@ -99,6 +99,18 @@ func logToFile() {
 	log.SetOutput(io.MultiWriter(f, os.Stderr))
 }
 
+// runInBrowser serves the panel without a window: it opens the panel in the
+// browser on first run and whenever a login needs the user, prints its
+// address and waits.
+func runInBrowser(ctx context.Context, p *panel, firstRun bool) {
+	p.prompt.notify = func() { openBrowser(p.url()) }
+	if firstRun {
+		openBrowser(p.url())
+	}
+	fmt.Printf("Control panel: %s\n  (Ctrl+C to quit)\n", p.url())
+	<-ctx.Done()
+}
+
 func openBrowser(url string) {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {

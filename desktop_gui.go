@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"runtime"
 	"time"
@@ -17,7 +18,9 @@ const desktopBuild = true
 
 const windowName = "main"
 
-// tray is the desktop app: a tray icon and the control panel window.
+// tray is the desktop app: a tray icon and the control panel window. With
+// no app, the system can't show a window and the panel opens in the
+// browser instead.
 type tray struct {
 	app *application.App
 	p   *panel // set by run before the window loads the panel
@@ -28,6 +31,10 @@ type tray struct {
 // app again is the only way back to a closed window.
 func newTray() *tray {
 	t := &tray{}
+	if err := windowSupport(); err != nil {
+		log.Printf("Can't show the sshproxy window (%v), using the browser instead", err)
+		return t
+	}
 	t.app = application.New(application.Options{
 		Name: "sshproxy",
 		Assets: application.AssetOptions{
@@ -59,6 +66,10 @@ func newTray() *tray {
 // would, served in-process. On macOS quitting exits the process without
 // returning, so shutdown runs as Wails' shutdown hook.
 func (t *tray) run(ctx context.Context, p *panel, firstRun bool, shutdown func()) {
+	if t.app == nil {
+		runInBrowser(ctx, p, firstRun)
+		return
+	}
 	t.p = p
 	app := t.app
 	app.OnShutdown(shutdown)

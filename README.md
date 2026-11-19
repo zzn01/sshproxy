@@ -43,13 +43,9 @@ first time. This is expected.
 - **Windows**: double-click the file. If a blue "Windows protected your
   PC" box appears, click **More info → Run anyway**.
 - **Linux**: make the file executable (right-click → Properties →
-  Permissions, or `chmod +x`) and run it. It needs GTK 4 and
-  WebKitGTK 6.0, so a recent distribution such as Ubuntu 24.04, Debian 13
-  or Fedora 39 or later. If they're missing, install them first, for
-  example `sudo apt install libgtk-4-1 libwebkitgtk-6.0-4` or
-  `sudo dnf install gtk4 webkitgtk6.0`. On older systems use the
-  [command line](#command-line) version with `sshproxy -gui`, which shows
-  the same window in your browser.
+  Permissions, or `chmod +x`) and run it. On older systems (before
+  Ubuntu 24.04, Debian 13 or Fedora 39) sshproxy opens in your web browser
+  instead of its own window; everything works the same.
 
 The first time, the sshproxy window opens by itself. After that sshproxy
 lives in the menu bar (Mac) or the system tray (Windows, Linux): click its
