@@ -45,7 +45,8 @@ first time. This is expected.
 - **Linux**: make the file executable (right-click → Properties →
   Permissions, or `chmod +x`) and run it. On older systems (before
   Ubuntu 24.04, Debian 13 or Fedora 39) sshproxy opens in your web browser
-  instead of its own window; everything works the same.
+  instead of its own window; everything works the same. If you close the
+  browser tab, open sshproxy again to get it back.
 
 The first time, the sshproxy window opens by itself. After that sshproxy
 lives in the menu bar (Mac) or the system tray (Windows, Linux): click its

@@ -12,11 +12,14 @@ import (
 	"io"
 	"log"
 	"math"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
+	"time"
 )
 
 // runGUI runs the control panel mode: engine, panel and (in desktop
@@ -29,6 +32,13 @@ func runGUI(ctx context.Context, path, listen string) error {
 	// Before taking the port, so that launching the desktop app again
 	// hands over to the running one instead of failing.
 	t := newTray()
+	// The same without a window (browser panel): show the running one's
+	// panel. A busy port can't tell, listenLocal moves on to the next one.
+	if url := runningPanel(panelURLFile()); url != "" {
+		fmt.Printf("sshproxy is already running: %s\n", url)
+		openBrowser(url)
+		return nil
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return err
@@ -47,6 +57,10 @@ func runGUI(ctx context.Context, path, listen string) error {
 	}
 	defer ln.Close()
 	p := newPanel(e, ln.Addr().String(), prompter)
+	urlFile := panelURLFile()
+	if urlFile != "" && os.MkdirAll(filepath.Dir(urlFile), 0o700) == nil {
+		os.WriteFile(urlFile, []byte(p.url()), 0o600)
+	}
 
 	// A crash can leave the OS pointing at a proxy that no longer runs,
 	// which breaks the user's internet; undo that first.
@@ -72,6 +86,7 @@ func runGUI(ctx context.Context, path, listen string) error {
 			clearSystemProxy(p.addr)
 		}
 		e.close()
+		os.Remove(urlFile)
 	})
 	// First run: show where to paste.
 	t.run(ctx, p, len(cfg.Proxies) == 0, shutdown)
@@ -97,6 +112,45 @@ func logToFile() {
 	// The file first: in a Windows GUI app writes to stderr fail, and
 	// MultiWriter stops at the first error.
 	log.SetOutput(io.MultiWriter(f, os.Stderr))
+}
+
+// panelURLFile holds the running panel's link, so that launching sshproxy
+// again opens it instead of starting a second copy. Only the user can read
+// it: the link carries the panel's token.
+func panelURLFile() string {
+	dir, err := os.UserCacheDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(dir, "sshproxy", "panel-url")
+}
+
+// runningPanel returns the panel link saved in file if that panel answers
+// with its token, or "" if it's stale or the file is missing.
+func runningPanel(file string) string {
+	b, err := os.ReadFile(file)
+	if err != nil {
+		return ""
+	}
+	url := strings.TrimSpace(string(b))
+	base, token, ok := strings.Cut(url, "/ui/#")
+	if !ok {
+		return ""
+	}
+	req, err := http.NewRequest("GET", base+"/api/state", nil)
+	if err != nil {
+		return ""
+	}
+	req.Header.Set("X-Token", token)
+	res, err := (&http.Client{Timeout: 2 * time.Second}).Do(req)
+	if err != nil {
+		return ""
+	}
+	res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ""
+	}
+	return url
 }
 
 // runInBrowser serves the panel without a window: it opens the panel in the
